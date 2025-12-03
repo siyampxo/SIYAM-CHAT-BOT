@@ -52,7 +52,15 @@ module.exports.run = async function ({ api, event, args }) {
     }
 
   } catch (e) {
-    console.log("NUMLOOKUP ERROR:", e.message);
-    api.sendMessage("❌ API Error or server offline", event.threadID);
+  console.log("NUMLOOKUP FULL ERROR:", e.response ? e.response.data : e.message);
+
+  let errMsg = "❌ API Error\n";
+
+  if (e.response && e.response.data) {
+    errMsg += JSON.stringify(e.response.data);
+  } else {
+    errMsg += e.message;
   }
-};
+
+  api.sendMessage(errMsg, event.threadID);
+  }
