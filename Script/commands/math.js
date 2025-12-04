@@ -1,128 +1,121 @@
 module.exports.config = {
     name: "math",
-    version: "2.0.0",
+    version: "3.0.0",
     hasPermssion: 0,
-    credits: "xAI + Siam",
-    description: "Full step-by-step math solution with explanation",
+    credits: "Grok xAI + Siam",
+    description: "বাংলায় পূর্ণাঙ্গ ধাপে ধাপে গণিত সমাধান",
     commandCategory: "study",
-    usages: "math 2x + 5 = 11",
+    usages: "math x + 5 = 10",
     cooldowns: 5,
-    dependencies: {
-        "axios": "",
-        "fs-extra": ""
-    },
-    envConfig: {
-        "WOLFRAM": "T8J8YV-H265UQ762K" // তোমার API key
-    }
+    dependencies: { "axios": "", "fs-extra": "" },
+    envConfig: { "WOLFRAM": "T8J8YV-H265UQ762K" }
 };
 
 module.exports.run = async function ({ api, event, args }) {
     const axios = global.nodemodule["axios"];
     const fs = global.nodemodule["fs-extra"];
     const { threadID, messageID } = event;
-    const out = (msg, callback = null) => api.sendMessage(msg, threadID, callback, messageID);
+    const out = (msg, callback) => api.sendMessage(msg, threadID, callback, messageID);
 
-    let input = args.join(" ").trim();
-    if (!input) return out("❌ অনুগ্রহ করে একটি গাণিতিক সমস্যা লিখুন\nউদাহরণ: math 2x + 5 = 11");
+    const input = args.join(" ").trim();
+    if (!input) return out("❌ কী সমাধান করবো? একটা প্রশ্ন লিখো 😅\nউদাহরণ: math 2x + 8 = 20");
 
-    // যদি শুধু -p, -g, -v না থাকে, তাহলে full solution চাই
-    if (!input.startsWith("-p") && !input.startsWith("-g") && !input.startsWith("-v")) {
-        try {
-            // প্রথমে Wolfram এ পাঠাই step-by-step এর জন্য
-            const res = await axios.get(`http://api.wolframalpha.com/v2/query`, {
-                params: {
-                    appid: global.configModule.math.WOLFRAM,
-                    input: `${input} step-by-step solution`,
-                    podstate: "Step-by-step solution",
-                    format: "plaintext",
-                    output: "json"
-                }
-            });
-
-            const data = res.data.queryresult;
-
-            if (!data.success) {
-                return out(`⚠️ সমাধান পাওয়া যায়নি। আরেকবার চেষ্টা করুন।\nপ্রশ্ন: ${input}`);
+    // Wolfram থেকে step-by-step নেওয়ার চেষ্টা
+    try {
+        const res = await axios.get("http://api.wolframalpha.com/v2/query", {
+            params: {
+                appid: global.configModule.math.WOLFRAM,
+                input: input + " step-by-step",
+                podstate: "Step-by-step solution",
+                format: "plaintext",
+                output: "json"
             }
+        });
 
-            let solution = "";
-            let hasSteps = false;
+        const data = res.data.queryresult;
 
-            // Step-by-step pod খুঁজি
-            for (let pod of data.pods) {
-                if (pod.title.includes("Step") || pod.title.includes("Solution") || pod.id === "Solution") {
-                    for (let sub of pod.subpods) {
-                        if (sub.plaintext && sub.plaintext.trim() !== "") {
-                            solution += sub.plaintext + "\n\n";
-                            hasSteps = true;
-                        }
-                        // ছবি থাকলে পাঠাবো
-                        if (sub.img && sub.img.src) {
-                            const img = (await axios.get(sub.img.src, { responseType: "stream" })).data;
-                            const path = __dirname + `/cache/math_step_${Date.now()}.png`;
-                            img.pipe(fs.createWriteStream(path))
-                                .on("close", () => {
-                                    api.sendMessage({
-                                        body: "📈 বিস্তারিত সমাধানের ছবি:",
-                                        attachment: fs.createReadStream(path)
-                                    }, threadID, () => fs.unlinkSync(path), messageID);
-                                });
-                        }
-                    }
+        if (data.success === false) throw new Error("Wolfram failed");
+
+        let steps = "";
+        let images = [];
+
+        for (let pod of data.pods) {
+            if (pod.title.toLowerCase().includes("step") || pod.title.toLowerCase().includes("solution")) {
+                for (let sub of pod.subpods) {
+                    if (sub.plaintext) steps += sub.plaintext + "\n\n";
+                    if (sub.img?.src) images.push(sub.img.src);
                 }
             }
-
-            // যদি step-by-step না পাই, তাহলে সাধারণ উত্তর + নিজে লিখে দিব
-            if (!hasSteps) {
-                const simple = await axios.get(`http://api.wolframalpha.com/v2/query`, {
-                    params: {
-                        appid: global.configModule.math.WOLFRAM,
-                        input: input,
-                        output: "json"
-                    }
-                });
-
-                const resultPod = simple.data.queryresult.pods.find(p => p.id === "Result" || p.id === "Solution");
-                const answer = resultPod ? resultPod.subpods[0].plaintext : "সমাধান পাওয়া যায়নি";
-
-                solution = `🔸 প্রশ্ন: ${input}\n\n`;
-                solution += `✍️ সমাধান:\n`;
-                solution += await generateManualSteps(input); // নিজের তৈরি step-by-step
-                solution += `\n\n✅ চূড়ান্ত উত্তর:\n${answer}`;
-            }
-
-            // সুন্দর করে ফরম্যাট করা
-            const finalMsg = `🧮 গণিত সমাধান\n\n` +
-                `📝 প্রশ্ন: ${input}\n\n` +
-                `✍️ ধাপে ধাপে সমাধান:\n\n` +
-                solution.trim();
-
-            out(finalMsg);
-
-        } catch (e) {
-            out("❌ কিছু একটা গন্ডগোল হয়েছে। আবার চেষ্টা করো।");
-            console.log(e);
         }
+
+        // যদি Wolfram এ ভালো স্টেপ না পাই → নিজে লিখে দিব
+        if (!steps.includes("step") && !steps.includes("⇒") && steps.length < 50) {
+            steps = await beautifulBanglaSolution(input);
+        }
+
+        let msg = `🧮 গণিত সমাধান\n\n`;
+        msg += `📝 প্রশ্ন: ${input}\n\n`;
+        msg += `✍️ ধাপে ধাপে সমাধান:\n\n`;
+        msg += steps.trim();
+
+        // ছবি থাকলে পাঠাবো
+        if (images.length > 0) {
+            const attachments = [];
+            for (let url of images.slice(0, 3)) {
+                const img = (await axios.get(url, { responseType: "stream" })).data;
+                const path = __dirname + `/cache/math_${Date.now()}.png`;
+                await new Promise(r => img.pipe(fs.createWriteStream(path)).on("close", r));
+                attachments.push(fs.createReadStream(path));
+            }
+            return out({ body: msg, attachment: attachments }, () => attachments.forEach(f => fs.unlinkSync(f.path)));
+        }
+
+        out(msg);
+
+    } catch (e) {
+        // Wolfram ফেল করলে নিজের ফাংশন দিয়ে সমাধান করব
+        const manual = await beautifulBanglaSolution(input);
+        out(`🧮 গণিত সমাধান\n\n📝 প্রশ্ন: ${input}\n\n✍️ ধাপে ধাপে সমাধান:\n\n${manual}`);
     }
-    // বাকি -p, -g, -v পুরনো মতোই থাকবে (যদি লাগে)
 };
 
-// সাধারণ সমীকরণের জন্য নিজের তৈরি step-by-step
-async function generateManualSteps(eq) {
-    eq = eq.toLowerCase().replace(/\s/g, "");
+// এটাই ম্যাজিক → সব ধরনের সমীকরণের জন্য সুন্দর বাংলা সমাধান
+async function beautifulBanglaSolution(eq) {
+    eq = eq.replace(/\s/g, "").toLowerCase();
 
-    // উদাহরণ: 2x+5=11
-    if (eq.includes("=")) {
-        let [left, right] = eq.split("=");
-        if (/x/.test(left)) {
-            let steps = "";
-            steps += `দেওয়া আছে: ${eq.replace(/x/g, "x")}\n`;
-            steps += `প্রথমে x এর পাশের সংখ্যা সরাই → ${left} - ${right.includes("-") ? `(${right})` : right}\n`;
-            steps += `অতঃপর x এর গুণক দিয়ে ভাগ করি...\n`;
-            return steps;
-        }
+    // কেস ১: x = 5 এর মতো
+    if (/^x=?[0-9.+-]+$/.test(eq)) {
+        const val = eq.split("=")[1] || eq.replace("x", "");
+        return `দেওয়া আছে: x = ${val}\n\nএটি একটি সরল সমীকরণ যেখানে x এর মান সরাসরি দেওয়া আছে।\n\n∴ x = ${val}\n\n✅ সমাধান সম্পূর্ণ`;
     }
 
-    // আরো অনেক ধরনের সমীকরণের জন্য লেখা যাবে
-    return `দুঃখিত, এই সমীকরণের ধাপে ধাপে সমাধান এখনো তৈরি হয়নি। তবে Wolfram থেকে চেষ্টা করা হচ্ছে...`;
+    // কেস ২: ax + b = c
+    const linearPattern = /([0-9.]*\.?[0-9]+)?x([+-]\d+\.?\d*)?=([+-]?\d+\.?\d+)/;
+    if (linearPattern.test(eq)) {
+        let [_, a = "1", b = "", c] = eq.match(linearPattern);
+        a = a || "1";
+        b = b || "0";
+        c = c || "0";
+
+        if (a === "") a = "1";
+        if (b.startsWith("+")) b = b.slice(1);
+
+        let steps = `দেওয়া আছে:\n${a === "1" ? "" : a}x ${b >= 0 ? "+" : ""} ${b} = ${c}\n\n`;
+
+        steps += "১. দুই পাশ থেকে ";
+        if (parseFloat(b) >= 0) steps += `+${b} বিয়োগ করি:\n`;
+        else steps += `${b} যোগ করি:\n`;
+
+        const newRight = parseFloat(c) - parseFloat(b);
+        steps += `${a}x = ${newRight}\n\n`;
+
+        steps += `২. দুই পাশকে ${a} দিয়ে ভাগ করি:\n`;
+        steps += `x = ${newRight / parseFloat(a)}\n\n`;
+
+        steps += `✅ সমাধান: x = ${newRight / parseFloat(a)}`;
+        return steps;
+    }
+
+    // আরো অনেক কেস যোগ করা যাবে (কোয়াড্রেটিক, ট্রিগ ইত্যাদি)
+    return `এই সমীকরণটির ধাপে ধাপে সমাধান এখনো তৈরি করা হয়নি 😅\nতবে Wolfram Alpha থেকে চেষ্টা করা হয়েছে!`;
 }
