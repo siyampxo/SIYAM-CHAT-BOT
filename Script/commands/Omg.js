@@ -1,7 +1,7 @@
 module.exports = {
   config: {
     name: "art",
-    version: "1.2",
+    version: "1.3",
     author: "SIYAM CHAT BOT",
     hasPermission: 0,
     commandCategory: "fun",
@@ -32,22 +32,32 @@ module.exports = {
         params: { p: prompt }
       });
 
-      // API response
-      const imageUrl = response.data.url || response.data.image;
+      console.log("DEBUG: Full API response:", response.data); // Check the console for exact API response
 
-      if (!imageUrl) {
-        return api.sendMessage("❌ Failed to generate image. Check API response.", event.threadID);
+      // Handle different API response types
+      let imageUrl = null;
+
+      if (response.data.url) {
+        imageUrl = response.data.url; // direct image URL
+      } else if (response.data.image) {
+        // Might be base64 string
+        const base64Data = response.data.image.replace(/^data:image\/\w+;base64,/, "");
+        fs.writeFileSync(avatarPath, Buffer.from(base64Data, "base64"));
+        imageUrl = avatarPath; // local file path
+      } else {
+        return api.sendMessage("❌ Failed to generate image. Check console for API response.", event.threadID);
       }
 
-      // Download image
-      const imgResp = await axios.get(imageUrl, { responseType: "stream" });
-      const writer = fs.createWriteStream(avatarPath);
-      imgResp.data.pipe(writer);
-
-      await new Promise((resolve, reject) => {
-        writer.on("finish", resolve);
-        writer.on("error", reject);
-      });
+      // If imageUrl is a URL, download it
+      if (!fs.existsSync(imageUrl)) {
+        const imgResp = await axios.get(imageUrl, { responseType: "stream" });
+        const writer = fs.createWriteStream(avatarPath);
+        imgResp.data.pipe(writer);
+        await new Promise((resolve, reject) => {
+          writer.on("finish", resolve);
+          writer.on("error", reject);
+        });
+      }
 
       // Send image
       await api.sendMessage({
