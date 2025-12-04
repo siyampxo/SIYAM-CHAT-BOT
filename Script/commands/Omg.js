@@ -1,66 +1,62 @@
-// ফাইল নাম: omg.js (commands ফোল্ডারে রাখো)
-const axios = require("axios");
-
 module.exports = {
   config: {
-    name: "omg",
-    version: "3.0",
-    hasPermssion: 0,
-    credits: "Siyam Pro (Backup Edition)",
-    description: "Instant OMG AI Image with backups",
-    usages: ".omg a hot girl in red dress on beach",
-    commandCategory: "AI IMAGE",
-    cooldowns: 6
+    name: "art",
+    version: "1.0",
+    author: "SIYAM CHAT BOT",
+    hasPermission: 0,
+    commandCategory: "fun",
+    cooldowns: 5,
+    description: "Generate AI art from your prompt",
+    usage: "[prompt]",
+    dependencies: {
+      "axios": "",
+      "fs-extra": ""
+    }
   },
 
-  run: async function ({ api, event, args }) {
-    const prompt = args.join(" ");
-    if (!prompt) return api.sendMessage("❌ লিখো কী চাও!\nExample: .omg a muscular man in gym", event.threadID);
+  run: async function({ api, event, args }) {
+    const axios = require("axios");
+    const fs = require("fs-extra");
+    const path = require("path");
 
-    let msg = await api.sendMessage("🚀 OMG Loading... (with backups!)", event.threadID);
-
-    // Backup APIs (সবচেয়ে রিলায়েবল)
-    const apis = [
-      // 1. Fal.ai Flux (সুপার ফাস্ট, no auth)
-      {
-        url: `https://fal.run/fal-ai/flux/schnell?prompt=${encodeURIComponent(prompt)}`,
-        extract: (data) => data.images?.[0]?.url || data.url
-      },
-      // 2. YanzBot AI (ফ্রি + স্টেবল)
-      {
-        url: `https://api.yanzbotz.eu.org/api/ai/text2img?prompt=${encodeURIComponent(prompt)}`,
-        extract: (data) => data.result || data.image_url
-      },
-      // 3. Safone Dev (বাংলা সাপোর্ট + art)
-      {
-        url: `https://api.safone.dev/ai/image?prompt=${encodeURIComponent(prompt)}`,
-        extract: (data) => data.image || data.url
+    try {
+      if (!args[0]) {
+        return api.sendMessage("⚠️ Please provide a prompt to generate art.\nExample: !art sunset over mountains", event.threadID);
       }
-    ];
 
-    for (let apiConfig of apis) {
-      try {
-        const res = await axios.get(apiConfig.url, { timeout: 45000 });
-        const imgUrl = apiConfig.extract(res.data);
-        
-        if (!imgUrl) continue;  // Skip if no URL
+      const prompt = args.join(" ");
+      const avatarPath = path.join(__dirname, "cache", `${event.senderID}.jpg`);
 
-        const imageResponse = await axios.get(imgUrl, { responseType: "stream", timeout: 30000 });
+      // Call the API
+      const response = await axios.post("https://dev.oculux.xyz/api/artv1", { prompt });
+      const imageUrl = response.data.url; // API er image URL
 
-        api.unsendMessage(msg.messageID);
-        return api.sendMessage({
-          body: `✨ OMG Magic Done! Used: ${apiConfig.url.includes('fal') ? 'Flux AI' : apiConfig.url.includes('yanz') ? 'YanzBot' : 'Safone'} 🔥`,
-          attachment: imageResponse.data
-        }, event.threadID);
-
-      } catch (e) {
-        console.log(`API ${apiConfig.url} failed:`, e.message);
-        continue;  // Next API
+      if (!imageUrl) {
+        return api.sendMessage("❌ Failed to generate image. Try again later.", event.threadID);
       }
+
+      // Download image
+      const imgResp = await axios.get(imageUrl, { responseType: "stream" });
+      const writer = fs.createWriteStream(avatarPath);
+      imgResp.data.pipe(writer);
+
+      await new Promise((resolve, reject) => {
+        writer.on("finish", resolve);
+        writer.on("error", reject);
+      });
+
+      // Send message with image
+      const message = {
+        body: `🎨 Here’s your art for: "${prompt}"`,
+        attachment: fs.createReadStream(avatarPath)
+      };
+
+      await api.sendMessage(message, event.threadID);
+      fs.unlinkSync(avatarPath);
+
+    } catch (error) {
+      console.error("Error in art command:", error);
+      api.sendMessage("❌ An error occurred while generating art.", event.threadID);
     }
-
-    // যদি সব fail হয়
-    api.unsendMessage(msg.messageID);
-    api.sendMessage("❌ সব API busy আজকে! ৫ মিনিট পর আবার ট্রাই করো বা prompt চেঞ্জ করো। Alternative: .meta a dragon", event.threadID);
   }
 };
