@@ -1,7 +1,7 @@
 module.exports = {
   config: {
     name: "art",
-    version: "1.0",
+    version: "1.1",
     author: "SIYAM CHAT BOT",
     hasPermission: 0,
     commandCategory: "fun",
@@ -28,11 +28,17 @@ module.exports = {
       const avatarPath = path.join(__dirname, "cache", `${event.senderID}.jpg`);
 
       // Call the API
-      const response = await axios.post("https://dev.oculux.xyz/api/artv1", { prompt });
-      const imageUrl = response.data.url; // API er image URL
+      const response = await axios.get("https://dev.oculux.xyz/api/artv1", {
+        params: { prompt } // query param
+      });
+
+      console.log("DEBUG: API response:", response.data); // <-- Debug: check exact response
+
+      // Adjust this based on the actual API response field
+      const imageUrl = response.data.url || response.data.image; 
 
       if (!imageUrl) {
-        return api.sendMessage("❌ Failed to generate image. Try again later.", event.threadID);
+        return api.sendMessage("❌ Failed to generate image. Check the console for API response.", event.threadID);
       }
 
       // Download image
@@ -56,7 +62,7 @@ module.exports = {
 
     } catch (error) {
       console.error("Error in art command:", error);
-      api.sendMessage("❌ An error occurred while generating art.", event.threadID);
+      api.sendMessage("❌ An error occurred while generating art. Check console for details.", event.threadID);
     }
   }
 };
