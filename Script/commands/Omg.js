@@ -1,46 +1,66 @@
-// ফাইল নাম: omg.js  (commands ফোল্ডারে রাখো)
+// ফাইল নাম: omg.js (commands ফোল্ডারে রাখো)
 const axios = require("axios");
-const fs = require("fs-extra");
-const path = require("path");
 
 module.exports = {
   config: {
     name: "omg",
-    version: "1.0",
+    version: "3.0",
     hasPermssion: 0,
-    credits: "Siyam + Oculux",
-    description: "Instant OMG level AI image (1 click = 1 image)",
-    usages: ".omg a dragon flying in space",
+    credits: "Siyam Pro (Backup Edition)",
+    description: "Instant OMG AI Image with backups",
+    usages: ".omg a hot girl in red dress on beach",
     commandCategory: "AI IMAGE",
-    cooldowns: 8
+    cooldowns: 6
   },
 
   run: async function ({ api, event, args }) {
     const prompt = args.join(" ");
-    if (!prompt) return api.sendMessage("❌ লিখো কী চাও!\nExample: .omg a cute girl with blue hair", event.threadID);
+    if (!prompt) return api.sendMessage("❌ লিখো কী চাও!\nExample: .omg a muscular man in gym", event.threadID);
 
-    let msg = await api.sendMessage("🌀 Generating OMG image...", event.threadID);
+    let msg = await api.sendMessage("🚀 OMG Loading... (with backups!)", event.threadID);
 
-    try {
-      const response = await axios.get(`https://dev.oculux.xyz/api/artv1?p=${encodeURIComponent(prompt)}`, {
-        timeout: 60000
-      });
+    // Backup APIs (সবচেয়ে রিলায়েবল)
+    const apis = [
+      // 1. Fal.ai Flux (সুপার ফাস্ট, no auth)
+      {
+        url: `https://fal.run/fal-ai/flux/schnell?prompt=${encodeURIComponent(prompt)}`,
+        extract: (data) => data.images?.[0]?.url || data.url
+      },
+      // 2. YanzBot AI (ফ্রি + স্টেবল)
+      {
+        url: `https://api.yanzbotz.eu.org/api/ai/text2img?prompt=${encodeURIComponent(prompt)}`,
+        extract: (data) => data.result || data.image_url
+      },
+      // 3. Safone Dev (বাংলা সাপোর্ট + art)
+      {
+        url: `https://api.safone.dev/ai/image?prompt=${encodeURIComponent(prompt)}`,
+        extract: (data) => data.image || data.url
+      }
+    ];
 
-      const imgUrl = response.data.image_url || response.data.url || response.data.images?.[0]?.url;
-      if (!imgUrl) throw new Error("Image URL not found");
+    for (let apiConfig of apis) {
+      try {
+        const res = await axios.get(apiConfig.url, { timeout: 45000 });
+        const imgUrl = apiConfig.extract(res.data);
+        
+        if (!imgUrl) continue;  // Skip if no URL
 
-      const img = await axios.get(imgUrl, { responseType: "stream" });
+        const imageResponse = await axios.get(imgUrl, { responseType: "stream", timeout: 30000 });
 
-      api.unsendMessage(msg.messageID);
-      api.sendMessage({
-        body: "✨ OMG Done! 🔥",
-        attachment: img.data
-      }, event.threadID);
+        api.unsendMessage(msg.messageID);
+        return api.sendMessage({
+          body: `✨ OMG Magic Done! Used: ${apiConfig.url.includes('fal') ? 'Flux AI' : apiConfig.url.includes('yanz') ? 'YanzBot' : 'Safone'} 🔥`,
+          attachment: imageResponse.data
+        }, event.threadID);
 
-    } catch (e) {
-      api.unsendMessage(msg.messageID);
-      api.sendMessage("❌ OMG failed bro! Try again or change prompt.", event.threadID);
-      console.log(e);
+      } catch (e) {
+        console.log(`API ${apiConfig.url} failed:`, e.message);
+        continue;  // Next API
+      }
     }
+
+    // যদি সব fail হয়
+    api.unsendMessage(msg.messageID);
+    api.sendMessage("❌ সব API busy আজকে! ৫ মিনিট পর আবার ট্রাই করো বা prompt চেঞ্জ করো। Alternative: .meta a dragon", event.threadID);
   }
 };
