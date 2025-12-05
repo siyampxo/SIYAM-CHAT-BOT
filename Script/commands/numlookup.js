@@ -1,59 +1,90 @@
-// commands/numlookup.js
-const axios = require("axios");
+/**
+ * numlookup.js
+ * Usage:
+ *   !numlookup 8801789963078
+ *   /numlookup 01838000000
+ *
+ * API:
+ * https://connect-foxapi.onrender.com/tools/numlookup?apikey=gaysex&number=
+ */
 
 module.exports.config = {
   name: "numlookup",
-  version: "3.0",
+  version: "2.0",
   hasPermssion: 0,
   credits: "SIYAM",
-  description: "Phone number lookup with name + profile picture",
+  description: "Phone number lookup with image + card style",
   commandCategory: "utility",
-  usages: ".numlookup 8801789963078",
-  cooldowns: 5
+  usages: "!numlookup <number>",
+  cooldowns: 3
 };
 
+const axios = require("axios");
+
+const BASE_API = "https://connect-foxapi.onrender.com/tools/numlookup";
+const API_KEY = "gaysex"; // YOUR API KEY HERE
+
 module.exports.run = async function({ api, event, args }) {
-  const number = args.join("").replace("+", "").trim();
-
-  if (!number) {
-    return api.sendMessage("নাম্বার দে ভাই!\nউদাহরণ: .numlookup 8801789963078", event.threadID);
-  }
-
-  const cleanNumber = number.replace(/\D/g, "");
-  if (cleanNumber.length < 10) {
-    return api.sendMessage("ভুল নাম্বার! সঠিক কান্ট্রি কোডসহ দে।", event.threadID);
-  }
-
-  api.sendMessage("খুঁজতেছি...", event.threadID);
-
   try {
-    const res = await axios.get(
-      `https://connect-foxapi.onrender.com/tools/numlookup?apikey=gaysex&number=${cleanNumber}`
-    );
+    const threadID = event.threadID;
+    const input = args.join("").trim();
 
-    const d = res.data;
-
-    // যদি API থেকে কোনো ডাটা না আসে
-    if (!d || (!d.name && !d.img && !d.fb_id)) {
-      return api.sendMessage("কোনো তথ্য পাওয়া যায়নি এই নাম্বারে।", event.threadID);
+    if (!input) {
+      return api.sendMessage(
+        "❗ Use: !numlookup <phone number>\nExample: !numlookup 8801789963078",
+        threadID
+      );
     }
 
-    let msg = `Number lookup result for: ${cleanNumber}\n`;
-    msg += `────────────────────\n\n`;
-    msg += `More info:\n`;
-    msg += `  name: ${d.name || "Not found"}\n`;
-    msg += `  img: ${d.img ? "[Profile Picture Below]" : "Not found"}\n`;
-    msg += `  fb_id: ${d.fb_id || "Not Found"}`;
+    // sanitize number
+    const number = input.replace(/\s+/g, "").replace(/^\+/, "");
 
-    // ছবি থাকলে পাঠাবে
-    const attachment = d.img ? await global.utils.getStreamFromURL(d.img) : null;
+    const url = `${BASE_API}?apikey=${API_KEY}&number=${number}`;
 
-    api.sendMessage({
-      body: msg,
-      attachment: attachment || []
-    }, event.threadID);
+    await api.sendMessage(`🔎 Looking up: ${number} ...`, threadID);
 
-  } catch (e) {
-    api.sendMessage("API ডাউন বা নাম্বারে কোনো তথ্য নেই। পরে ট্রাই করো।", event.threadID);
+    const res = await axios.get(url, { timeout: 15000 });
+    const data = res.data;
+
+    if (!data || data.error || data.status === "error") {
+      return api.sendMessage(
+        `❌ Lookup failed.\n${data.message || "No response from API"}`,
+        threadID
+      );
+    }
+
+    // Unwrap API response safely
+    let payload = data.data || data.result || data;
+
+    const name = payload.name || "Not Found";
+    const img = payload.img || null;
+    const fb = payload.fb_id || "Not Found";
+
+    // UI Output
+    const text = 
+`📱 Number Lookup Results
+
+━━━━━━━━━━━━━━━━━━
+☑ Number      : ${number}
+☑ Name        : ${name}
+☑ Facebook ID : ${fb === null ? "Not Found" : fb}
+━━━━━━━━━━━━━━━━━━
+🤖 SIYAM Lookup Bot`;
+
+    // Send with image if exists
+    if (img) {
+      const stream = await axios.get(img, { responseType: "stream" });
+      return api.sendMessage({
+        body: text,
+        attachment: stream.data
+      }, threadID);
+    }
+
+    // else text only
+    return api.sendMessage(text, threadID);
+
+  } catch (err) {
+    console.log("numlookup error:", err.message || err);
+    return api.sendMessage("❌ Error occurred during lookup. Try again later.", event.threadID);
   }
 };
