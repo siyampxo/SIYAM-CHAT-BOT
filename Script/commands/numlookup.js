@@ -27,13 +27,13 @@ module.exports.run = async function({ api, event, args }) {
     const input = args.join("").trim();
 
     if (!input) {
-      return api.sendMessage("❌ Usage: !numlookup <number>\nExample: !numlookup 8801789963078", threadID);
+      return api.sendMessage("❌ Usage: .numlookup <number>\nExample: .numlookup 8801XXXXXXXXX", threadID);
     }
 
     // Clean number
     const number = input.replace(/\s+/g, "").replace(/^\+/, "");
 
-    await api.sendMessage(`🔍 LIVE NUMBER LOOKUP...\n\n📞 Looking: ${number}`, threadID);
+    await api.sendMessage(`🔍 SEARCHING PLEASE WAIT...\n\n📞 Looking: ${number}`, threadID);
 
     const url = `${BASE_API}?apikey=${API_KEY}&number=${number}`;
     const res = await axios.get(url, { timeout: 15000 });
