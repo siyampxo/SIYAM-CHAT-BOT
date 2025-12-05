@@ -1,9 +1,9 @@
 module.exports.config = {
     name: "check",
-    version: "1.1.0",
+    version: "1.0.0",
     hasPermssion: 0,
     credits: "𝐎𝐍𝐋𝐘 𝐒𝐈𝐘𝐀𝐌 𝐁𝐎𝐓 𝑻𝑬𝑨𝑴_ ☢️",
-    description: "Check Free Fire player info and banned status by UID with image",
+    description: "Check Free Fire player info and banned status by UID",
     commandCategory: "game",
     usages: "[UID]",
     cooldowns: 5
@@ -43,17 +43,8 @@ module.exports.run = async function({ api, event, args, getText }) {
         const banRes = await axios.get(`http://amin-team-api.vercel.app/check_banned?player_id=${UID}`);
         const banStatus = banRes.data.status || "Unknown";
 
-        // 3️⃣ Decide image URL based on status
-        // 🔹 Replace these URLs with your Imgur links
-        const bannedImage = "https://imgur.com/7lXrguX.jpeg";
-        const notBannedImage = "https://imgur.com/DetMuju.jpeg";
-        const imageURL = banStatus === "NOT BANNED" ? notBannedImage : bannedImage;
-
-        // 4️⃣ Send structured response with image
-        const msg = {
-            body: getText("result", playerName, UID, banStatus),
-            attachment: await global.utils.getStream(imageURL) // Messenger Bot style
-        };
+        // 3️⃣ Send structured response
+        const msg = getText("result", playerName, UID, banStatus);
         api.sendMessage(msg, threadID, messageID);
 
     } catch (err) {
