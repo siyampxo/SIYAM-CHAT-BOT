@@ -31,7 +31,7 @@ module.exports.run = async function({ api, event, args, getText }) {
     const fs = require("fs");
     const { threadID, messageID } = event;
 
-    // Google Drive direct links
+    // Google Drive Direct Links
     const BANNED_VIDEO = "https://drive.google.com/uc?export=download&id=1QGd1PwGGO_oiJHxAjA-PTEYot0IDXhNC";
     const NOT_BANNED_VIDEO = "https://drive.google.com/uc?export=download&id=1hEvjeU66_3YgcsQFCaJNze8H020J6Teg";
 
@@ -50,20 +50,25 @@ module.exports.run = async function({ api, event, args, getText }) {
         const banRes = await axios.get(`http://amin-team-api.vercel.app/check_banned?player_id=${UID}`);
         const status = banRes.data.status || "Unknown";
 
-        // 3️⃣ Send Player Info Text
-        const msg = getText("result", playerName, UID, status);
-        api.sendMessage(msg, threadID);
+        // 3️⃣ Prepare message text
+        const infoText = getText("result", playerName, UID, status);
+        const extraText =
+            status.toLowerCase() === "banned"
+                ? getText("bannedText")
+                : getText("notBannedText");
 
-        // 4️⃣ Download correct video based on ban status
+        const finalText = infoText + "\n\n" + extraText;
+
+        // 4️⃣ Download correct video
         const videoPath = __dirname + `/check_${UID}.mp4`;
         const videoURL = status.toLowerCase() === "banned" ? BANNED_VIDEO : NOT_BANNED_VIDEO;
 
         const response = await axios.get(videoURL, { responseType: "arraybuffer" });
         fs.writeFileSync(videoPath, Buffer.from(response.data));
 
-        // 5️⃣ Send video + text
+        // 5️⃣ SEND TEXT + VIDEO TOGETHER IN ONE MESSAGE
         api.sendMessage({
-            body: status.toLowerCase() === "banned" ? getText("bannedText") : getText("notBannedText"),
+            body: finalText,
             attachment: fs.createReadStream(videoPath)
         }, threadID, () => fs.unlinkSync(videoPath));
 
