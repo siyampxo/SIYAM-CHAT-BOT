@@ -12,7 +12,7 @@ module.exports.config = {
 module.exports.languages = {
     "en": {
         "noArgs": "❌ Please enter UID. Example: %prefix%check 903437692",
-        "fetching": "⏳ Fetching info for UID: %1...",
+        "fetching": "⏳ chaking account status for UID: %1...",
         "result": "🧑‍💻 Player Info\n├─ Name: %1\n├─ UID: %2\n├─ Status: %3",
         "error": "❌ Error fetching info: %1",
         "bannedText": "⚠️ Your Free Fire ID is *BANNED*.\n📹 Watch the video below for details.",
@@ -32,8 +32,8 @@ module.exports.run = async function({ api, event, args, getText }) {
     const { threadID, messageID } = event;
 
     // Google Drive Direct Links
-    const BANNED_VIDEO = "https://drive.google.com/uc?export=download&id=1QGd1PwGGO_oiJHxAjA-PTEYot0IDXhNC";
-    const NOT_BANNED_VIDEO = "https://drive.google.com/uc?export=download&id=1hEvjeU66_3YgcsQFCaJNze8H020J6Teg";
+    const BANNED_VIDEO = "https://drive.google.com/uc?export=download&id=1leWQG3MYoz9md0wlWGyWcSdav252vEX9";
+    const NOT_BANNED_VIDEO = "https://drive.google.com/uc?export=download&id=1q47rdgdVGpmY5vIilo5-v15cxItMjc3Y";
 
     if (!args[0])
         return api.sendMessage(getText("noArgs", { prefix: global.config.PREFIX }), threadID, messageID);
